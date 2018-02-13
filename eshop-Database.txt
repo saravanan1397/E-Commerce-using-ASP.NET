@@ -1,0 +1,448 @@
+Table
+--------
+1.Category
+-------------------
+Create Table Category
+(
+CategoryId  int primary key identity (1,1),
+CategoryName varchar(200)
+)
+
+2.CustomerDetails
+--------------------------
+Create Table CustomerDetails
+(
+ID  int primary key identity (1,1),
+CustomerName varchar(100),
+CustomerEmailID varchar(100),
+CustomerPhoneNo  varchar(10),
+CustomerAddress varchar(100),
+TotalProducts  int,
+TotalPrice int,
+OrderDateTime datetime,
+PaymentMethod varchar(100)
+)
+
+3.CustomerProducts
+------------------------------
+Create Table CustomerProducts
+(
+CustomerID  int primary key identity (1,1),
+ProductID int,
+TotalProduct int
+)
+
+
+4.DeliveryStatus
+------------------------
+Create Table DeliveryStatus
+(
+Id  int primary key identity (1,1),
+TransactionNo int,
+StatusMessage varchar(300),
+DateEntry datetime
+)
+
+5.product
+--------------
+Create Table product
+(
+ProductId  int primary key identity (1,1),
+Name varchar(300),
+Price varchar(50),
+Image varchar(500),
+Description varchar(1000),
+CategoryID int,
+ProductQuantity int
+)
+
+Procedure
+---------------
+1.SaveCustomerdDetails
+--------------------------------------
+Create Procedure [dbo].[SaveCustomerDetails]
+(
+@CustomerName VarChar (100),
+@CustomerEmailID VarChar (100),
+@CustomerPhoneNo VarChar (10),
+@CustomerAddress VarChar (100),
+@TotalProducts Int,
+@TotalPrice Int,
+@PaymentMethod varchar(100)
+)
+As
+BEGIN
+ 
+BEGIn TRY
+insert into CustomerDetails(CustomerName , CustomerEmailID , CustomerPhoneNo,CustomerAddress,TotalProducts,TotalPrice,PaymentMethod)
+values(@CustomerName,@CustomerEmailID,@CustomerPhoneNo,@CustomerAddress,@TotalProducts,@TotalPrice,@PaymentMethod )  
+
+select @@IDENTITY as CustomerID
+END TRY
+BEGIN CATCH
+print('Error Occured')
+END CATCH
+END
+
+
+2.AddNewCategory
+-----------------------------
+Create PROCEDURE [dbo].[SP_AddNewCategory]
+(
+@CategoryName varchar(200)
+)
+AS
+BEGIN
+BEGIN TRY
+insert into Category values(@CategoryName)
+END TRY
+
+BEGIN CATCH
+-- INSERT INTO dbo.ErrorLog
+-- VALUES (ERROR_MESSAGE(),'sp_GetAllData')
+PRINT('Error Occured')
+END CATCH
+END
+
+
+3.AddNewProduct
+----------------------------
+Create PROCEDURE [dbo].[SP_AddNewProduct] 
+(
+@ProductName varchar(300),
+@ProductPrice int,
+@ProductImage varchar(500),
+@ProductDescription varchar(1000),
+@CategoryID int,
+@ProductQuantity int
+)
+As
+BEGIN 
+BEGIN TRY
+
+insert into product values
+(
+@ProductName ,
+@ProductPrice ,
+@ProductImage ,
+@ProductDescription ,
+@CategoryID,
+@ProductQuantity
+) 
+END TRY
+Begin Catch
+Print('Error Occured')
+End Catch
+End
+
+4.GetAllCategories
+---------------------------
+Create PROCEDURE [dbo].[SP_GetAllCategories]
+
+AS
+BEGIN
+BEGIN TRY
+select * from Category
+END TRY
+BEGIN CATCH
+-- INSERT INTO dbo.ErrorLog
+-- VALUES(ERROR_MESSAGE(),'sp_GetAllData') 
+PRINT('Error Occured')
+END CATCH
+END
+
+5.GetAllProducts
+-------------------------
+Create PROCEDURE [dbo].[SP_GetAllProducts]
+(
+@CategoryID int
+)
+	
+AS
+BEGIN
+	BEGIN TRY
+	IF(@CategoryID <>0)
+	BEGIN
+	
+	SELECT * FROM (
+SELECT p.CategoryID ,
+p.ProductID ,
+p.Name,
+p.Price,
+p.Image,
+p.Description ,
+c.CategoryName,
+p.ProductQuantity,
+ISNULL(SUM(cp.TotalProduct),0) As ProductSold,
+ (p.ProductQuantity - ISNULL(SUM(cp.TotalProduct),0 )) As AvailableStock
+FROM product p 
+INNER JOIN Category c ON c.CategoryID = p.CategoryID
+LEFT JOIN CustomerProducts cp ON cp.ProductID = p.ProductID
+
+GROUP BY p.ProductID,
+ p.Name,
+p.Price,
+p.Image,
+p.Description ,
+c.CategoryName,
+p.CategoryID ,
+p.ProductQuantity) StockTable
+WHERE AvailableStock > 0 AND CategoryID = @CategoryID 
+END
+
+ELSE
+
+BEGIN
+
+	SELECT * FROM (
+SELECT p.CategoryID ,
+p.ProductID ,
+p.Name,
+p.Price,
+p.Image,
+p.Description ,
+c.CategoryName,
+p.ProductQuantity,
+ISNULL(SUM(cp.TotalProduct),0) As ProductSold,
+ (p.ProductQuantity - ISNULL(SUM(cp.TotalProduct),0 )) As AvailableStock
+FROM product p 
+INNER JOIN Category c ON c.CategoryID = p.CategoryID
+LEFT JOIN CustomerProducts cp ON cp.ProductID = p.ProductID
+
+GROUP BY p.ProductID,
+p.Name,
+p.Price,
+p.Image,
+p.Description, 
+c.CategoryName,
+p.CategoryID ,
+p.ProductQuantity) StockTable
+WHERE AvailableStock > 0 
+END
+	END TRY
+	BEGIN CATCH
+	PRINT('ERROR OCCURED')
+	END CATCH
+END
+
+
+6.GetAvailableStock
+-----------------------------
+Create Procedure [dbo].[SP_GetAvailableStock]
+(
+@StockType Int,
+@CategoryID Int
+)
+AS
+BEGIN
+BEGIN TRY
+DECLARE @StartRange INT
+DECLARE @EndRange INT
+
+IF(@StockType = 0)
+BEGIN
+SET @StartRange = 0
+SET @EndRange = 0
+END
+
+IF(@StockType = 1)
+BEGIN
+SET @StartRange = 1
+SET @EndRange = 10
+END
+
+
+IF(@StockType = 2)
+BEGIN
+SET @StartRange = 11
+SET @EndRange = 1000
+END
+
+IF(@CategoryID = 0)
+
+BEGIN 
+SELECT * FROM 
+(
+SELECT p.Name,
+p.Price,
+p.Image,
+c.CategoryName,
+p.ProductQuantity,
+ISNULL(SUM(cp.TotalProduct),0) As ProductSold,
+ (p.ProductQuantity - ISNULL(SUM(cp.TotalProduct),0)) As AvailableStock
+FROM product p 
+INNER JOIN Category c ON c.CategoryID = p.CategoryID
+LEFT JOIN CustomerProducts cp ON cp.ProductID = p.ProductID
+
+GROUP BY cp.ProductID,
+ p.Name,
+p.Price,
+p.Image,
+c.CategoryName,
+p.ProductQuantity)StockTable
+WHERE AvailableStock BETWEEN @StartRange AND @EndRange
+END
+ELSE
+
+BEGIN
+ SELECT * FROM 
+(
+SELECT p.Name,
+p.Price,
+p.Image,
+c.CategoryName,
+p.ProductQuantity,
+ISNULL(SUM(cp.TotalProduct),0) As ProductSold,
+ (p.ProductQuantity - ISNULL(SUM(cp.TotalProduct),0 )) As AvailableStock
+FROM product p 
+INNER JOIN Category c ON c.CategoryID = p.CategoryID
+LEFT JOIN CustomerProducts cp ON cp.ProductID = p.ProductID
+
+WHERE c.CategoryID = @CategoryID
+GROUP BY cp.ProductID,
+ p.Name,
+p.Price,
+p.Image,
+c.CategoryName,
+p.ProductQuantity)StockTable
+WHERE AvailableStock BETWEEN @StartRange AND @EndRange
+END
+END TRY
+
+BEGIN CATCH
+print('Error Occured')
+END CATCH
+END
+
+7.GetIncomeReport
+----------------------------
+Create Procedure [dbo].[SP_GetIncomeReport]
+(
+@ReportType Int
+)
+As
+BEGIN
+BEGIN TRY
+DECLARE @Month Int
+DECLARE @Today Int
+DECLARE @Year Int
+
+
+SELECT @Today = Day(GETDATE()),@Month = MONTH(GETDATE()),@Year = YEAR(GETDATE())  
+
+if(@ReportType = 1)
+begin
+Select * from(Select *,Day(OrderDateTime)As TodayDay,Month(OrderDateTime)As ThisMonth,Year(OrderDateTime)As ThisYear
+from  CustomerDetails)IncomeTable  WHERE TodayDay =@Today and ThisMonth=@Month and ThisYear=@Year   
+end 
+
+if(@ReportType = 2)
+begin
+Select * from(Select *,Day(OrderDateTime)As TodayDay,Month(OrderDateTime)As ThisMonth,Year(OrderDateTime)As ThisYear
+from  CustomerDetails)IncomeTable  WHERE ThisMonth=@Month and ThisYear=@Year   
+end 
+
+if(@ReportType = 3)
+begin
+Select * from(Select *,Day(OrderDateTime)As TodayDay,Month(OrderDateTime)As ThisMonth,Year(OrderDateTime)As ThisYear
+from  CustomerDetails)IncomeTable  WHERE  ThisYear=@Year   
+end 
+END TRY
+
+BEGIN CATCH
+Print('Error Occurred')
+END CATCH
+END
+
+8.GetOrderList
+----------------------
+Create Procedure [dbo].[SP_GetOrderList]
+(
+@Flag Int
+)
+As  
+BEGIN
+BEGIN TRY
+if(@Flag <> 0)
+BEGIN
+SELECT * FROM CustomerDetails where ID=@Flag 
+END
+ELSE
+BEGIN
+SELECT * FROM CustomerDetails
+END
+
+END TRY
+
+BEGiN CATCH
+
+print('Error Occured')
+
+END CATCH
+
+END
+
+9.GetTransactionDetails
+----------------------------------
+Create Procedure [dbo].[SP_GetTransactionDetails]
+(
+@TransactionNo int
+)
+As
+BEGIN
+BEGIN TRY
+select p.Name,p.Image,p.Price,CP.TotalProduct as ProductQuantity from product p
+INNER JOIN CustomerProducts CP
+ON CP.ProductID = p.ProductID 
+WHERE Cp.CustomerID = @TransactionNo  
+END TRY
+BEGIN CATCH
+Print(ERROR_MESSAGE())
+END CATCH
+END
+
+
+10.OrderStatus
+----------------------
+Create Procedure [dbo].[SP_OrderStatus]
+(
+@TransactionNo int,
+@OrderStatus VarChar(300),
+@Flag int
+)
+As
+BEGIN
+BEGIN TRY
+if(@Flag = 1)
+begin
+insert into DeliveryStatus(TransactionNo,StatusMessage)values(@TransactionNo ,@OrderStatus)
+end
+
+select StatusMessage as ShipmentStatus,DataEntry as updatedOn from DeliveryStatus where TransactionNo = @TransactionNo 
+END TRY
+
+BEGIN CATCH
+Print('Error Occured')
+END CATCH
+END
+
+
+11.SaveCustomer Products
+---------------------------------------
+Create procedure [dbo].[SP_SaveCustomerProducts]
+(
+@CustomerID int,
+@ProductID int,
+@TotalProduct int
+)
+As
+BEGIN
+BEGIN TRY
+insert into CustomerProducts(CustomerID , ProductID ,TotalProduct )
+Values(@CustomerID,@ProductID ,@TotalProduct ) 
+END TRY
+
+BEGIN CATCH
+print('Error Occured')
+END CATCH
+END
